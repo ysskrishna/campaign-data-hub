@@ -1,98 +1,170 @@
 # Campaign Data Hub
 
-Normalize weekly ad platform deliveries, assess data quality, and view campaign metrics in one place.
+A full-stack ingestion and reporting system for weekly ad-platform deliveries. It normalizes Meta, Google, and LinkedIn exports into one canonical dataset, runs quality checks on every file, and surfaces both campaign metrics and delivery health in a single UI.
 
-## Prerequisites
+Built for the [Campaign Data Hub assessment](workspace/build-product/README.md).
 
-- Python 3.12+
-- [uv](https://github.com/astral-sh/uv)
-- Node.js 18+
+## Quick start
 
-## Setup
-
-### Backend
+From a fresh clone:
 
 ```bash
-cd backend
-uv sync --extra dev
+make install    # backend (uv) + frontend (npm) dependencies
+make start      # API on :8000, UI on :5173
+make ingest     # load backend/data/deliveries into SQLite
+```
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| API (Swagger) | http://localhost:8000/docs |
+| API (ReDoc) | http://localhost:8000/redoc |
+
+Stop both servers with `make stop`.
+
+### Manual setup (if you prefer)
+
+```bash
+# Backend
+cd backend && uv sync --extra dev
 uv run uvicorn app.main:app --reload --port 8000
-```
 
-### Frontend
+# Frontend (separate terminal)
+cd frontend && npm install && npm run dev
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open http://localhost:5173
-
-### First run — ingest data
-
-```bash
+# First ingest
 curl -X POST http://localhost:8000/api/v1/ingest
 ```
-
-Or use **Run ingest** on the Data Health page.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  files[backend/data/deliveries] --> pipeline[Ingestion pipeline]
-  pipeline --> sqlite[(SQLite)]
-  sqlite --> api[FastAPI]
-  api --> ui[React UI]
+  subgraph inputs [Inputs]
+    meta[meta_ads_*.csv]
+    google[google_ads_*.csv]
+    linkedin[linkedin_ads_*.json]
+    rates[exchange_rates.json]
+  end
+
+  subgraph pipeline [Ingestion pipeline]
+    discover[Discover files]
+    parse[Platform parsers]
+    normalize[Normalize rows]
+    quality[Quality checks]
+    classify[Health classifier]
+  end
+
+  subgraph storage [SQLite]
+    deliveries[(deliveries)]
+    metrics[(campaign_metrics)]
+  end
+
+  subgraph api [FastAPI]
+    ingest_api[POST /ingest]
+    metrics_api[GET /metrics/*]
+    health_api[GET /deliveries/*]
+  end
+
+  ui[React UI]
+
+  meta --> discover
+  google --> discover
+  linkedin --> discover
+  rates --> normalize
+  discover --> parse --> normalize --> quality --> classify
+  classify --> deliveries
+  normalize --> metrics
+  deliveries --> api
+  metrics --> api
+  ingest_api --> pipeline
+  api --> ui
 ```
 
-**Storage:** SQLite — zero setup, fine for ~500 metric rows. Quality reports stored as JSON on `deliveries` (2 tables total).
+**Data flow:** `POST /api/v1/ingest` discovers files under `backend/data/deliveries/`, parses each platform's format, normalizes to `platform · campaign · date · spend_usd · impressions · clicks`, runs row/file/delivery checks, persists a quality report per file, and writes accepted rows to `campaign_metrics`. Re-ingesting is idempotent — same file hash and filename upsert in place.
 
-**Ingestion:** Synchronous `POST /api/v1/ingest` — no background jobs. Full run or single file via `{ "filename": "..." }`.
+## Storage
 
-## API endpoints
+**SQLite** via SQLAlchemy. Two tables:
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/v1/health` | Liveness |
-| POST | `/api/v1/ingest` | Ingest all files or one file |
-| GET | `/api/v1/metrics/campaigns` | Campaign metrics (filters, sort) |
-| GET | `/api/v1/metrics/summary` | Totals for filters |
-| GET | `/api/v1/metrics/by-platform` | Grouped by platform |
-| GET | `/api/v1/deliveries` | List deliveries + health |
-| GET | `/api/v1/deliveries/{id}/quality-report` | Full quality report |
-
-## Quality checks implemented
-
-| Check | What it catches in provided data |
+| Table | Purpose |
 |---|---|
-| `duplicate_rows` | Google 06-01 — 8 duplicate campaign-day rows (keep first) |
-| `duplicate_delivery` | Google 06-15 resend file |
-| `date_parseable` / `date_valid_calendar` | Meta 06-01 row 23 (`06/31/2026`) |
-| `row_required_fields` | Meta 06-15 missing clicks; LinkedIn missing fields |
-| `numeric_non_negative` | Meta 06-22 negative spend |
-| `spend_outlier` | Meta 06-08 ~100× spend spike |
-| `campaign_name_variants` | Meta casing/whitespace variants |
-| `cadence_missing_delivery` | Missing `linkedin_ads_2026-06-22.json` |
-| `partial_week` | Week 06-29 (2 days only) |
+| `deliveries` | One row per file: health, row counts, quality report (JSON blob) |
+| `campaign_metrics` | Normalized metric rows linked to a delivery |
+
+SQLite needs no Docker or external service, handles ~500 metric rows comfortably, and keeps the submission runnable from a single `make install`. Quality reports are stored as JSON on `deliveries` rather than a separate `quality_checks` table — simpler for this scope; a dedicated table would help if we needed SQL analytics over check outcomes.
+
+## API
+
+Interactive OpenAPI docs are generated by FastAPI:
+
+- **Swagger UI:** http://localhost:8000/docs
+- **ReDoc:** http://localhost:8000/redoc
+
+Key resources: campaign metrics (with platform/date filters, sort, totals), delivery health list, per-delivery quality report, and ingest trigger.
+
+## Quality checks
+
+Checks run at three levels during ingestion (`backend/app/pipeline/process.py`):
+
+| Level | Check | Outcome in provided data |
+|---|---|---|
+| File | `file_readable` | All 15 files parse; would **fail** if CSV/JSON is corrupt |
+| File | `duplicate_rows` | Google 06-01 — 8 duplicate campaign-day rows (keep first) |
+| File | `campaign_name_variants` | Meta — casing/whitespace variants map to same `campaign_key` |
+| File | `partial_week` | Week 06-29 (2 days only); Google 06-08 has fewer than 7 dates |
+| Row | `date_in_week_window` | Row dates outside the delivery's week window |
+| Row | `row_required_fields` | Meta 06-15 missing clicks; LinkedIn rows with missing fields |
+| Row | `date_parseable` / `date_valid_calendar` | Meta 06-01 row 23 (`06/31/2026`) |
+| Row | `currency_known` | Unknown currency codes |
+| Row | `numeric_non_negative` | Meta 06-22 negative spend |
+| Row | `spend_outlier` | Meta 06-08 ~100× spend spike (rejected, not just warned) |
+| Delivery | `duplicate_delivery` | Google 06-15 resend file (non-canonical; metrics not counted) |
+| Delivery | Cadence gap (post-ingest) | Missing `linkedin_ads_2026-06-22.json` — surfaced in ingest response and UI alert |
+
+Rejected rows are dropped from metrics but recorded in the quality report with reason and raw payload.
+
+## Health classification (pass / warn / fail)
+
+Overall delivery health is computed in `backend/app/pipeline/quality/classifier.py`:
+
+```
+fail  →  any rejected row, OR any file-level check with outcome "fail"
+warn  →  no fail, but at least one check with outcome "warn"
+pass  →  everything else
+```
+
+| Health | When | Examples in provided data |
+|---|---|---|
+| **fail** | Unparseable file, or one or more rows rejected during validation | Meta 06-01 (invalid date), Meta 06-15 (missing clicks), Meta 06-22 (negative spend), Meta 06-08 (spend outlier) |
+| **warn** | File ingested and all rows either accepted or only deduped, but a check flagged a concern | Google 06-01 (duplicate rows), Google 06-15 (duplicate delivery file), Meta (campaign name variants), week 06-29 (partial week) |
+| **pass** | No rejected rows and no warn/fail checks | Clean Google and LinkedIn weeks |
+
+The UI shows row counts as `accepted / raw` per file. Summary cards: **Passing** (delivery count by health), **Rows accepted** (`accepted / raw` with percentage), **Rejected rows** (total dropped across all files).
 
 ## Design decisions
 
-- **2 DB tables** — `deliveries` + `campaign_metrics`; quality report as JSON (YAGNI)
-- **Campaign grouping** — `campaign_key = trim + casefold`; metrics API aggregates by key
-- **Resend files** — first filename wins for metrics; duplicate flagged warn
-- **No file upload** — reads from `backend/data/deliveries/` (FR-6 triggers pipeline, not upload)
+- **Campaign grouping** — `campaign_key = trim + casefold`; metrics API aggregates by key so `"Summer Sale"` and `"summer sale "` roll up together.
+- **Duplicate deliveries** — first filename wins for a `(platform, week)` slot; later files are ingested for audit but marked non-canonical with zero accepted rows for metrics.
+- **Duplicate rows** — same `(campaign_key, date)` within a file: keep first, skip rest (warn, not fail).
+- **Spend outliers** — rejected when spend > 10× the running median for that platform+campaign (prevents a single bad row from skewing totals).
+- **Synchronous ingest** — `POST /ingest` runs inline; no job queue. Fine for 15 small weekly files.
+- **No file upload** — FR-6 triggers the pipeline over files on disk, not an upload endpoint.
+- **Error isolation** — a bad row or file never aborts the run; failures are recorded and processing continues (NFR-2).
 
 ## Tests
 
 ```bash
-cd backend
-uv run pytest tests/e2e -v
+make test
+# or: cd backend && uv run pytest tests/e2e -v
 ```
 
-## Deferred (more time)
+E2E tests cover: full ingest idempotency (run twice, same counts), expected health outcomes for planted defects, and normalized metric totals. Frontend smoke tests live in `frontend/e2e/`.
 
-- Docker-compose
-- Async ingest / background jobs for large files
-- File upload API
-- Separate `quality_checks` table for SQL analytics
+## What I'd do with more time
+
+- `docker-compose.yml` for one-command bring-up
+- Async ingest with progress for larger file sets
+- File upload API for deliveries not already on disk
+- Separate `quality_checks` table for SQL-level reporting
+- Cadence-gap row in the deliveries table (synthetic "missing" delivery) so gaps appear in the health list without a separate alert

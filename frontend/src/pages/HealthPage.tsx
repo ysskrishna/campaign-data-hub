@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmtPct, platformLabel, type Delivery, type QualityReport } from '../api'
+import { api, fmtNum, fmtPct, platformLabel, type Delivery, type QualityReport } from '../api'
 import DeliveryDrawer from '../components/DeliveryDrawer'
 import HealthBadge, { healthRowAccent } from '../components/HealthBadge'
 import HealthSelect from '../components/HealthSelect'
@@ -59,8 +59,9 @@ export default function HealthPage() {
     const fail = deliveries.filter((d) => d.health === 'fail').length
     const raw = deliveries.reduce((s, d) => s + d.row_count_raw, 0)
     const accepted = deliveries.reduce((s, d) => s + d.row_count_accepted, 0)
+    const rejected = raw - accepted
     const rate = raw > 0 ? accepted / raw : null
-    return { pass, warn, fail, total: deliveries.length, rate }
+    return { pass, warn, fail, total: deliveries.length, raw, accepted, rejected, rate }
   }, [deliveries])
 
   const runIngest = async () => {
@@ -100,15 +101,15 @@ export default function HealthPage() {
           hint={`${stats.warn} warn · ${stats.fail} fail`}
         />
         <StatCard
-          label="Acceptance rate"
-          value={stats.rate !== null ? fmtPct(stats.rate) : '—'}
-          hint="Accepted rows / raw rows"
+          label="Rows accepted"
+          value={stats.raw > 0 ? `${fmtNum(stats.accepted)} / ${fmtNum(stats.raw)}` : '—'}
+          hint={stats.rate !== null ? `${fmtPct(stats.rate)} of raw rows` : 'Accepted / raw rows'}
         />
         <StatCard
-          label="Issues"
-          value={String(stats.warn + stats.fail)}
-          tone={stats.warn + stats.fail > 0 ? 'warn' : 'default'}
-          hint="Files with warn or fail"
+          label="Rejected rows"
+          value={fmtNum(stats.rejected)}
+          tone={stats.rejected > 0 ? 'warn' : 'default'}
+          hint="Dropped during validation"
         />
       </div>
 
