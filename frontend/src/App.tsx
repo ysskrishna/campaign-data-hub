@@ -5,15 +5,24 @@ import MetricsPage from './pages/MetricsPage'
 function App() {
   return (
     <BrowserRouter>
-      <div className="bg-white text-[#0d0d0d] min-h-screen antialiased">
-        <header className="border-b border-[#e5e5e5]">
-          <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-8">
-            <span className="text-base font-medium">Campaign Data Hub</span>
-            <nav className="flex gap-6 text-sm">
+      <div className="min-h-screen antialiased">
+        <header className="bg-white border-b border-[var(--border)] sticky top-0 z-40">
+          <div className="max-w-6xl mx-auto px-6 h-14 flex items-center gap-8">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--foreground)] text-white text-xs font-bold">
+                CD
+              </span>
+              <span className="text-sm font-semibold tracking-tight">Campaign Data Hub</span>
+            </div>
+            <nav className="flex gap-1 text-sm">
               <NavLink
                 to="/metrics"
                 className={({ isActive }) =>
-                  `pb-3 -mb-[1px] border-b-2 font-medium ${isActive ? 'border-[#0d0d0d] text-[#0d0d0d]' : 'border-transparent text-[#6b6b6b]'}`
+                  `px-3 py-1.5 rounded-md font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[var(--surface)] text-[var(--foreground)]'
+                      : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                  }`
                 }
               >
                 Metrics
@@ -21,7 +30,11 @@ function App() {
               <NavLink
                 to="/health"
                 className={({ isActive }) =>
-                  `pb-3 -mb-[1px] border-b-2 font-medium ${isActive ? 'border-[#0d0d0d] text-[#0d0d0d]' : 'border-transparent text-[#6b6b6b]'}`
+                  `px-3 py-1.5 rounded-md font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[var(--surface)] text-[var(--foreground)]'
+                      : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                  }`
                 }
               >
                 Data Health
@@ -29,7 +42,7 @@ function App() {
             </nav>
           </div>
         </header>
-        <main className="max-w-6xl mx-auto px-6 py-8">
+        <main className="max-w-6xl mx-auto px-6 py-6">
           <Routes>
             <Route path="/" element={<MetricsPage />} />
             <Route path="/metrics" element={<MetricsPage />} />
