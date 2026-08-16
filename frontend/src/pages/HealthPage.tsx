@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, fmtPct, platformLabel, type Delivery, type QualityReport } from '../api'
 import DeliveryDrawer from '../components/DeliveryDrawer'
-import HealthBadge from '../components/HealthBadge'
+import HealthBadge, { healthRowAccent } from '../components/HealthBadge'
 import HealthSelect from '../components/HealthSelect'
 import PlatformSelect from '../components/PlatformSelect'
 import SearchInput from '../components/SearchInput'
@@ -81,21 +81,24 @@ export default function HealthPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
-        <h1 className="text-xl font-semibold tracking-tight">Data Health</h1>
-        <button
-          type="button"
-          className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--surface)] disabled:opacity-50"
-          onClick={runIngest}
-          disabled={ingesting}
-        >
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 className="page-title">Data Health</h1>
+          <p className="page-desc">Review delivery quality and drill into check outcomes.</p>
+        </div>
+        <button type="button" className="btn-secondary shrink-0" onClick={runIngest} disabled={ingesting}>
           {ingesting ? 'Ingesting…' : 'Run ingest'}
         </button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <StatCard label="Files" value={String(stats.total)} hint="Total deliveries" />
-        <StatCard label="Passing" value={String(stats.pass)} tone="pass" hint={`${stats.warn} warn · ${stats.fail} fail`} />
+        <StatCard
+          label="Passing"
+          value={String(stats.pass)}
+          tone="pass"
+          hint={`${stats.warn} warn · ${stats.fail} fail`}
+        />
         <StatCard
           label="Acceptance rate"
           value={stats.rate !== null ? fmtPct(stats.rate) : '—'}
@@ -109,7 +112,7 @@ export default function HealthPage() {
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="filter-bar">
         <SearchInput
           value={search}
           onChange={setSearch}
@@ -118,60 +121,69 @@ export default function HealthPage() {
         />
         <PlatformSelect value={platform} onChange={setPlatform} />
         <HealthSelect value={health} onChange={setHealth} />
-        <span className="text-xs text-[var(--muted)] sm:ml-auto">
+        <span className="text-xs text-[var(--muted)] sm:ml-auto tabular-nums">
           {filtered.length} file{filtered.length === 1 ? '' : 's'}
         </span>
       </div>
 
-      <div className="border border-[var(--border)] rounded-xl overflow-hidden bg-white">
+      <div className="table-shell">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[var(--border)] bg-[var(--surface)] text-left text-[var(--muted)]">
-              <th className="px-4 py-2.5 font-medium">Health</th>
-              <th className="px-4 py-2.5 font-medium">Platform</th>
-              <th className="px-4 py-2.5 font-medium">Week</th>
-              <th className="px-4 py-2.5 font-medium">File</th>
-              <th className="px-4 py-2.5 font-medium text-right">Rows</th>
+            <tr className="table-head">
+              <th className="table-head-cell">Health</th>
+              <th className="table-head-cell">Platform</th>
+              <th className="table-head-cell">Week</th>
+              <th className="table-head-cell">File</th>
+              <th className="table-head-cell text-right">Rows</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-[var(--muted)]">
-                  {search || platform || health ? 'No deliveries match your filters.' : 'No deliveries yet. Run ingest to load files.'}
+                <td colSpan={5} className="table-cell py-12 text-center text-[var(--muted)]">
+                  {search || platform || health
+                    ? 'No deliveries match your filters.'
+                    : 'No deliveries yet. Run ingest to load files.'}
                 </td>
               </tr>
             ) : (
-              filtered.map((d) => (
-                <tr
-                  key={d.id}
-                  className={`hover:bg-[var(--surface)]/60 cursor-pointer ${selected?.id === d.id && drawerOpen ? 'bg-[var(--surface)]' : ''}`}
-                  onClick={() => openDelivery(d)}
-                >
-                  <td className="px-4 py-2.5">
-                    <HealthBadge health={d.health} />
-                  </td>
-                  <td className="px-4 py-2.5">{platformLabel[d.platform] ?? d.platform}</td>
-                  <td className="px-4 py-2.5 text-[var(--muted)]">{d.week_start}</td>
-                  <td className="px-4 py-2.5">
-                    <span className="font-mono text-xs">{d.filename}</span>
-                    {!d.is_canonical && (
-                      <span className="ml-2 text-xs text-amber-600 font-medium">duplicate</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">
-                    {d.row_count_accepted} / {d.row_count_raw}
-                  </td>
-                </tr>
-              ))
+              filtered.map((d) => {
+                const isSelected = selected?.id === d.id && drawerOpen
+                const accent = healthRowAccent[d.health] ?? 'border-l-gray-300'
+                return (
+                  <tr
+                    key={d.id}
+                    className={`border-l-[3px] ${accent} hover:bg-[var(--surface)]/70 cursor-pointer transition-colors ${
+                      isSelected ? 'bg-[var(--surface)]' : ''
+                    }`}
+                    onClick={() => openDelivery(d)}
+                  >
+                    <td className="table-cell">
+                      <HealthBadge health={d.health} />
+                    </td>
+                    <td className="table-cell">{platformLabel[d.platform] ?? d.platform}</td>
+                    <td className="table-cell text-[var(--muted)] tabular-nums">{d.week_start}</td>
+                    <td className="table-cell min-w-0">
+                      <span className="font-mono text-xs break-all">{d.filename}</span>
+                      {!d.is_canonical && (
+                        <span className="ml-2 text-xs text-[var(--warn)] font-semibold">duplicate</span>
+                      )}
+                    </td>
+                    <td className="table-cell text-right tabular-nums whitespace-nowrap">
+                      <span className="font-medium">{d.row_count_accepted}</span>
+                      <span className="text-[var(--muted)]"> / {d.row_count_raw}</span>
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>
       </div>
 
       {cadenceGap && (
-        <div className="mt-4 text-sm border border-amber-200 bg-amber-50 rounded-lg px-4 py-3">
-          <span className="font-medium text-amber-800">Cadence gap:</span>{' '}
+        <div className="alert-warn">
+          <span className="font-semibold text-amber-800">Cadence gap:</span>{' '}
           <span className="text-amber-700">{cadenceGap}</span>
           <span className="text-amber-600"> — expected delivery not found</span>
         </div>

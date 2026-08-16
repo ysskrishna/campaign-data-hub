@@ -7,7 +7,7 @@ type Props = {
 export default function HealthSelect({ value, onChange, className = '' }: Props) {
   return (
     <select
-      className={`text-sm border border-[var(--border)] rounded-lg px-3 py-2 bg-white min-w-[140px] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] ${className}`}
+      className={`input-base min-w-[140px] px-3 py-2 ${className}`}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label="Health filter"

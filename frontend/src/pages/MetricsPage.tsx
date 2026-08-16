@@ -9,6 +9,34 @@ import { presetToRange, type DatePreset } from '../lib/dateRange'
 type SortKey = 'spend_usd' | 'ctr'
 type SortOrder = 'asc' | 'desc'
 
+function SortHeader({
+  label,
+  active,
+  order,
+  onClick,
+  align = 'left',
+}: {
+  label: string
+  active: boolean
+  order: SortOrder
+  onClick: () => void
+  align?: 'left' | 'right'
+}) {
+  return (
+    <th className={`table-head-cell ${align === 'right' ? 'text-right' : ''}`}>
+      <button
+        type="button"
+        className={`sort-btn ${align === 'right' ? 'ml-auto' : ''} ${active ? 'text-[var(--foreground)]' : ''}`}
+        onClick={onClick}
+        aria-sort={active ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        {label}
+        {active && <span aria-hidden>{order === 'desc' ? '↓' : '↑'}</span>}
+      </button>
+    </th>
+  )
+}
+
 export default function MetricsPage() {
   const [platform, setPlatform] = useState('')
   const [datePreset, setDatePreset] = useState<DatePreset>('30')
@@ -73,8 +101,11 @@ export default function MetricsPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
-        <h1 className="text-xl font-semibold tracking-tight">Metrics</h1>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 className="page-title">Metrics</h1>
+          <p className="page-desc">Normalized spend, impressions, and derived CTR/CPC across platforms.</p>
+        </div>
         <DateRangePicker
           preset={datePreset}
           onPresetChange={setDatePreset}
@@ -86,7 +117,7 @@ export default function MetricsPage() {
       </div>
 
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
           <StatCard label="Spend" value={fmtMoney(summary.spend_usd)} />
           <StatCard label="Impressions" value={fmtNum(summary.impressions)} />
           <StatCard label="Clicks" value={fmtNum(summary.clicks)} />
@@ -95,7 +126,7 @@ export default function MetricsPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="filter-bar">
         <SearchInput
           value={search}
           onChange={setSearch}
@@ -103,59 +134,59 @@ export default function MetricsPage() {
           className="w-full sm:w-64"
         />
         <PlatformSelect value={platform} onChange={setPlatform} />
-        <span className="text-xs text-[var(--muted)] sm:ml-auto">
+        <span className="text-xs text-[var(--muted)] sm:ml-auto tabular-nums">
           {filteredRows.length} campaign{filteredRows.length === 1 ? '' : 's'}
         </span>
       </div>
 
-      {error && (
-        <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          {error}
-        </div>
-      )}
+      {error && <div className="alert-error">{error}</div>}
 
-      <div className="border border-[var(--border)] rounded-xl overflow-hidden bg-white">
+      <div className="table-shell">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[var(--border)] bg-[var(--surface)] text-left text-[var(--muted)]">
-              <th className="px-4 py-2.5 font-medium">Campaign</th>
-              <th className="px-4 py-2.5 font-medium">Platform</th>
-              <th
-                className="px-4 py-2.5 font-medium cursor-pointer select-none hover:text-[var(--foreground)]"
+            <tr className="table-head">
+              <th className="table-head-cell">Campaign</th>
+              <th className="table-head-cell">Platform</th>
+              <SortHeader
+                label="Spend"
+                active={sort === 'spend_usd'}
+                order={order}
                 onClick={() => toggleSort('spend_usd')}
-              >
-                Spend {sort === 'spend_usd' ? (order === 'desc' ? '↓' : '↑') : ''}
-              </th>
-              <th className="px-4 py-2.5 font-medium">Impressions</th>
-              <th className="px-4 py-2.5 font-medium">Clicks</th>
-              <th
-                className="px-4 py-2.5 font-medium cursor-pointer select-none hover:text-[var(--foreground)]"
+                align="right"
+              />
+              <th className="table-head-cell text-right">Impressions</th>
+              <th className="table-head-cell text-right">Clicks</th>
+              <SortHeader
+                label="CTR"
+                active={sort === 'ctr'}
+                order={order}
                 onClick={() => toggleSort('ctr')}
-              >
-                CTR {sort === 'ctr' ? (order === 'desc' ? '↓' : '↑') : ''}
-              </th>
-              <th className="px-4 py-2.5 font-medium">CPC</th>
+                align="right"
+              />
+              <th className="table-head-cell text-right">CPC</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
             {filteredRows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-[var(--muted)]">
+                <td colSpan={7} className="table-cell py-12 text-center text-[var(--muted)]">
                   {search ? 'No campaigns match your search.' : 'No data for this range.'}
                 </td>
               </tr>
             ) : (
               filteredRows.map((row) => (
-                <tr key={`${row.platform}-${row.campaign}`} className="hover:bg-[var(--surface)]/60">
-                  <td className="px-4 py-2.5 font-medium">{row.campaign}</td>
-                  <td className="px-4 py-2.5 text-[var(--muted)]">
+                <tr key={`${row.platform}-${row.campaign}`} className="hover:bg-[var(--surface)]/70 transition-colors">
+                  <td className="table-cell font-medium">{row.campaign}</td>
+                  <td className="table-cell text-[var(--muted)]">
                     {platformLabel[row.platform] ?? row.platform}
                   </td>
-                  <td className="px-4 py-2.5">{fmtMoney(row.spend_usd)}</td>
-                  <td className="px-4 py-2.5">{fmtNum(row.impressions)}</td>
-                  <td className="px-4 py-2.5">{fmtNum(row.clicks)}</td>
-                  <td className="px-4 py-2.5">{fmtPct(row.ctr)}</td>
-                  <td className="px-4 py-2.5">{row.cpc !== null ? fmtMoney(row.cpc) : '—'}</td>
+                  <td className="table-cell text-right tabular-nums">{fmtMoney(row.spend_usd)}</td>
+                  <td className="table-cell text-right tabular-nums">{fmtNum(row.impressions)}</td>
+                  <td className="table-cell text-right tabular-nums">{fmtNum(row.clicks)}</td>
+                  <td className="table-cell text-right tabular-nums">{fmtPct(row.ctr)}</td>
+                  <td className="table-cell text-right tabular-nums">
+                    {row.cpc !== null ? fmtMoney(row.cpc) : '—'}
+                  </td>
                 </tr>
               ))
             )}
