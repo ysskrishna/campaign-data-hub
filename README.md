@@ -1,6 +1,6 @@
 # Campaign Data Hub
 
-[![License: MIT](https://img.shields.io/github/license/ysskrishna/campaign-data-hub)](https://github.com/ysskrishna/campaign-data-hub/blob/main/LICENSE) [![Author site](https://img.shields.io/badge/author-ysskrishna.space-informational)](https://ysskrishna.space)
+[![Author site](https://img.shields.io/badge/author-ysskrishna.space-informational)](https://ysskrishna.space)
 
 A full-stack ingestion and reporting system for weekly ad-platform deliveries. It normalizes Meta, Google, and LinkedIn exports into one canonical dataset, runs quality checks on every file, and surfaces both campaign metrics and delivery health in a single UI.
 
@@ -187,10 +187,6 @@ If you find this project helpful:
 - 🐛 [Report issues](https://github.com/ysskrishna/campaign-data-hub/issues)
 - 🔀 Submit pull requests
 - 💝 [Sponsor on GitHub](https://github.com/sponsors/ysskrishna)
-
-## License
-
-MIT © [Y. Siva Sai Krishna](https://github.com/ysskrishna) — see [LICENSE](LICENSE) for details.
 
 ---
 
